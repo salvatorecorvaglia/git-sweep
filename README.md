@@ -20,4 +20,4 @@ This Bash script recursively scans a base directory for Git repositories and upd
 ## Usage
 
 ```bash
-./update-all-repos.sh
+./git-pull-all.sh
