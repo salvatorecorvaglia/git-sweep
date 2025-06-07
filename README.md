@@ -11,6 +11,7 @@ This Bash script recursively scans a base directory for Git repositories and upd
 - Supports a dry-run mode to preview actions without making changes.
 - Gracefully handles detached HEADs and non-fast-forward cases.
 - Exits with non-zero status if any branch could not be fast-forwarded.
+- Portable and tested on macOS, Linux, and WSL environments.
 
 ## Requirements
 
@@ -20,4 +21,4 @@ This Bash script recursively scans a base directory for Git repositories and upd
 ## Usage
 
 ```bash
-./git-pull-all.sh
+./git-pull-all.sh [--dry-run] [--dir <base-directory>]
