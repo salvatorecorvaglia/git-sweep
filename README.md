@@ -21,4 +21,8 @@ This Bash script recursively scans a base directory for Git repositories and upd
 ## Usage
 
 ```bash
+chmod +x git-pull-all.sh
+```
+```bash
 ./git-pull-all.sh [--dry-run] [--dir <base-directory>]
+```
