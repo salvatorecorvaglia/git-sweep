@@ -1,38 +1,20 @@
 #!/bin/bash
 
+# Exit immediately on error, undefined variable usage, or pipeline failure
 set -euo pipefail
 
-# Default base directory
-BASE_DIR="${HOME}/Desktop/mase"
+# Default base directory containing Git repositories
+BASE_DIR="${HOME}/Desktop/apps"
 
-# Flags
+# Flag indicating dry-run mode (0 = false, 1 = true)
 DRY_RUN=0
+
+# Flag to indicate if any merge has failed (0 = success, 1 = failure)
 merge_failed=0
 
-# Counters for summary
-total_repos=0
-branches_updated=0
-branches_skipped=0
-branches_merge_failed=0
-
-# Check if terminal supports colors
-if [ -t 1 ]; then
-  GREEN="\033[0;32m"
-  RED="\033[0;31m"
-  YELLOW="\033[1;33m"
-  BLUE="\033[0;34m"
-  RESET="\033[0m"
-else
-  GREEN=""
-  RED=""
-  YELLOW=""
-  BLUE=""
-  RESET=""
-fi
-
-# Check if git is installed
+# Check if git command is available
 if ! command -v git >/dev/null 2>&1; then
-  echo -e "${RED}❌ git command not found. Please install Git.${RESET}"
+  echo "❌ git command not found. Please install Git."
   exit 1
 fi
 
@@ -40,116 +22,114 @@ fi
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -n|--dry-run)
+      # Enable dry-run mode: do not perform actual merges, only show what would be done
       DRY_RUN=1
       shift
       ;;
     -d|--dir)
+      # Set the base directory to scan for Git repositories
       BASE_DIR="$2"
       shift 2
       ;;
     *)
-      echo -e "${YELLOW}Usage: $0 [--dry-run] [--dir <base-directory>]${RESET}" >&2
+      # Unknown option or usage error
+      echo "Usage: $0 [--dry-run] [--dir <base-directory>]" >&2
       exit 1
       ;;
   esac
 done
 
-# Check base directory exists
+# Check that the base directory exists
 if [ ! -d "$BASE_DIR" ]; then
-  echo -e "${RED}❌ The directory '$BASE_DIR' does not exist.${RESET}"
+  echo "❌ The directory '$BASE_DIR' does not exist."
   exit 1
 fi
 
-echo -e "${BLUE}🔍 Running fetch and update for all tracked branches in repositories under: $BASE_DIR${RESET}"
+echo "🔍 Running fetch and update for all tracked branches in repositories under: $BASE_DIR"
 echo
 
-process_repo() {
-  local repo_dir="$1"
-  ((total_repos++))
-  echo -e "${BLUE}➡️  Repository: $repo_dir${RESET}"
+# Find all .git directories recursively under BASE_DIR, handling filenames with spaces
+while IFS= read -r -d '' gitdir; do
+  # Get the repository root directory (parent of .git folder)
+  repo_dir=$(dirname "$gitdir")
+  echo "➡️  Repository: $repo_dir"
 
-  cd "$repo_dir" || { echo -e "${RED}❌ Cannot enter $repo_dir${RESET}"; return; }
+  # Save current directory and change to the repository directory
+  prev_dir=$(pwd)
+  cd "$repo_dir" || { echo "❌ Failed to enter $repo_dir"; continue; }
 
-  # Check valid Git repository
-  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    echo -e "${RED}❌ Not a Git repository: $repo_dir${RESET}"
-    return
-  fi
+    # Confirm this is a valid Git working tree
+    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+      echo "❌ Not a Git repository: $repo_dir"
+      continue
+    fi
 
-  # Skip uncommitted changes
-  if ! git diff-index --quiet HEAD --; then
-    echo -e "${YELLOW}⚠️  Uncommitted changes found. Skipping.${RESET}"
-    ((branches_skipped++))
-    return
-  fi
+    # Get the current checked-out branch
+    current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || true)
+    if [ -z "$current_branch" ]; then
+      echo "⚠️  No active branch (detached HEAD or empty repo). Skipping."
+      cd "$prev_dir" || true
+      continue
+    fi
 
-  # Get current branch
-  local current_branch
-  current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || true)
-  if [ -z "$current_branch" ]; then
-    echo -e "${YELLOW}⚠️  No active branch (detached HEAD or empty repo). Skipping.${RESET}"
-    ((branches_skipped++))
-    return
-  fi
-
-  # Fetch from all remotes
-  git fetch --all --prune --quiet
-  for remote in $(git remote); do
-    echo -e "${BLUE}🌐 Fetched from remote: $remote${RESET}"
-  done
-
-  # Update branches with upstream
-  while IFS=' ' read -r branch upstream; do
-    if [ -n "$upstream" ]; then
-      echo -e "${BLUE}🔄 Updating $branch from $upstream${RESET}"
-
-      if [ "$DRY_RUN" -eq 1 ]; then
-        echo -e "${YELLOW}🧪 [Dry-run] Would checkout $branch and merge from $upstream${RESET}"
+    # Skip if there are uncommitted changes in the working tree (only if HEAD exists)
+    if git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+      if ! git diff-index --quiet HEAD --; then
+        echo "⚠️  Uncommitted changes found. Skipping."
+        cd "$prev_dir" || true
         continue
-      fi
-
-      if ! git checkout "$branch" --quiet; then
-        echo -e "${RED}❌ Failed to checkout $branch${RESET}"
-        ((branches_merge_failed++))
-        merge_failed=1
-        continue
-      fi
-
-      if git merge --ff-only "$upstream" >/dev/null 2>&1; then
-        echo -e "${GREEN}✅ $branch updated${RESET}"
-        ((branches_updated++))
-      else
-        echo -e "${YELLOW}⚠️  Merge failed on $branch (non fast-forward)${RESET}"
-        local count
-        count=$(git rev-list --count "$branch..$upstream" || echo 0)
-        if [ "$count" -eq 0 ]; then
-          echo -e "${BLUE}ℹ️  Branch is up to date with upstream.${RESET}"
-        else
-          echo -e "${BLUE}🔍 Commits to be merged:${RESET}"
-          git log "$branch..$upstream" --oneline --graph --decorate
-        fi
-        ((branches_merge_failed++))
-        merge_failed=1
       fi
     fi
-  done < <(git for-each-ref --format='%(refname:short) %(upstream:short)' refs/heads/)
 
-  # Return to original branch
-  git checkout "$current_branch" --quiet 2>/dev/null || true
+    # Fetch updates from all remotes quietly, pruning deleted branches
+    for remote in $(git remote); do
+      echo "🌐 Fetching from remote: $remote"
+      git fetch "$remote" --prune --quiet
+    done
+
+    # For each local branch that tracks an upstream branch, attempt fast-forward merge
+    while IFS=' ' read -r branch upstream; do
+      if [ -n "$upstream" ]; then
+        echo "🔄 Updating $branch from $upstream"
+
+        # If dry-run, just print what would be done without making changes
+        if [ "$DRY_RUN" -eq 1 ]; then
+          echo "🧪 [Dry-run] Would checkout $branch and merge from $upstream"
+          continue
+        fi
+
+        # Checkout the branch
+        git checkout "$branch" --quiet || {
+          echo "❌ Failed to checkout $branch"
+          continue
+        }
+
+        # Attempt a fast-forward merge from the upstream branch
+        if git merge --ff-only "$upstream" > /dev/null 2>&1; then
+          echo "✅ $branch updated"
+        else
+          # If fast-forward merge fails, show commits to be merged and mark failure
+          echo "⚠️  Merge failed on $branch (non fast-forward)"
+          count=$(git rev-list --count "$branch..$upstream" || echo 0)
+          if [ "$count" -eq 0 ]; then
+            echo "ℹ️  Branch is up to date with upstream."
+          else
+            echo "🔍 Commits to be merged:"
+            git log "$branch..$upstream" --oneline
+          fi
+          merge_failed=1
+        fi
+      fi
+    done < <(git for-each-ref --format='%(refname:short) %(upstream:short)' refs/heads/)
+
+    # Return to the original branch after updates
+    git checkout "$current_branch" --quiet 2>/dev/null || true
+
+    # Return to the previous working directory
+    cd "$prev_dir" || true
+
   echo "-----------------------------------"
-}
-
-# Process all repositories
-while IFS= read -r -d '' gitdir; do
-  process_repo "$(dirname "$gitdir")"
 done < <(find "$BASE_DIR" -type d -name ".git" -print0)
 
-# Summary
-echo -e "${BLUE}📊 Summary:${RESET}"
-echo -e "${GREEN}✅ Branches updated: $branches_updated${RESET}"
-echo -e "${YELLOW}⚠️  Branches skipped: $branches_skipped${RESET}"
-echo -e "${RED}❌ Branches merge failed: $branches_merge_failed${RESET}"
-echo -e "${BLUE}📁 Total repositories processed: $total_repos${RESET}"
-
-echo -e "${GREEN}✅ Update completed for all repositories.${RESET}"
+echo "✅ Update completed for all repositories."
 exit $merge_failed

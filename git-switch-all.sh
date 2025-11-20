@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # Default base directory containing Git repositories
-BASE_DIR="/c/apps/mase"
+BASE_DIR="${HOME}/Desktop/apps"
 
 # Flag indicating dry-run mode (0 = false, 1 = true)
 DRY_RUN=0
@@ -64,76 +64,116 @@ echo "➡️  Target branch: $TARGET_BRANCH"
 echo
 
 # Find all .git directories recursively under BASE_DIR
-find "$BASE_DIR" -type d -name ".git" -print0 | while IFS= read -r -d '' gitdir; do
+while IFS= read -r -d '' gitdir; do
   repo_dir=$(dirname "$gitdir")
-  total_repos=$((total_repos + 1))
   echo "➡️  Repository: $repo_dir"
 
-  (
-    cd "$repo_dir" || exit
+  # Increase total repos (done in main shell so value persists)
+  total_repos=$((total_repos + 1))
 
-    # Confirm this is a valid Git working tree
-    if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-      echo "❌ Not a Git repository: $repo_dir"
-      branches_skipped=$((branches_skipped + 1))
-      continue
-    fi
+  # Save current directory and change to the repository directory
+  prev_dir=$(pwd)
+  cd "$repo_dir" || { echo "❌ Failed to enter $repo_dir"; branches_skipped=$((branches_skipped + 1)); continue; }
 
-    # Check for uncommitted changes (skip if HEAD doesn't exist)
-    if git rev-parse --verify HEAD >/dev/null 2>&1 && ! git diff-index --quiet HEAD --; then
+  # Confirm this is a valid Git working tree
+  if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    echo "❌ Not a Git repository: $repo_dir"
+    branches_skipped=$((branches_skipped + 1))
+    cd "$prev_dir" || true
+    echo "-----------------------------------"
+    continue
+  fi
+
+  # Check for uncommitted changes (skip if HEAD doesn't exist)
+  if git rev-parse --verify --quiet HEAD >/dev/null 2>&1; then
+    if ! git diff-index --quiet HEAD --; then
       echo "⚠️  Uncommitted changes found. Skipping."
       branches_skipped=$((branches_skipped + 1))
+      cd "$prev_dir" || true
+      echo "-----------------------------------"
       continue
     fi
+  fi
 
-    current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "(detached)")
+  current_branch=$(git symbolic-ref --short HEAD 2>/dev/null || echo "(detached)")
 
-    # Verify if target branch exists locally or remotely
-    if git show-ref --verify --quiet "refs/heads/$TARGET_BRANCH"; then
-      exists_locally=1
-    else
-      exists_locally=0
-    fi
+  # Verify if target branch exists locally
+  if git show-ref --verify --quiet "refs/heads/$TARGET_BRANCH"; then
+    exists_locally=1
+  else
+    exists_locally=0
+  fi
 
-    if [ "$exists_locally" -eq 0 ] && git ls-remote --exit-code origin "refs/heads/$TARGET_BRANCH" >/dev/null 2>&1; then
-      echo "🌐 Found remote branch $TARGET_BRANCH"
-      if [ "$DRY_RUN" -eq 0 ]; then
-        git fetch --quiet
-        git checkout -b "$TARGET_BRANCH" "origin/$TARGET_BRANCH" --quiet || {
-          echo "❌ Failed to create branch from remote."
-          switch_failed=$((switch_failed + 1))
-          continue
-        }
-      else
-        echo "🧪 [Dry-run] Would create local branch from origin/$TARGET_BRANCH"
+  remote_found=""
+  if [ "$exists_locally" -eq 0 ]; then
+    # Check all remotes for the branch
+    for remote in $(git remote); do
+      if git ls-remote --exit-code "$remote" "refs/heads/$TARGET_BRANCH" >/dev/null 2>&1; then
+        remote_found="$remote"
+        break
       fi
-    else
-      if [ "$exists_locally" -eq 0 ]; then
-        echo "❌ Branch '$TARGET_BRANCH' not found locally or remotely."
+    done
+  fi
+
+  if [ "$exists_locally" -eq 0 ] && [ -n "$remote_found" ]; then
+    echo "🌐 Found remote branch $TARGET_BRANCH on $remote_found"
+    if [ "$DRY_RUN" -eq 0 ]; then
+      git fetch --quiet "$remote_found" || git fetch --quiet
+      if git checkout -b "$TARGET_BRANCH" "$remote_found/$TARGET_BRANCH" --quiet; then
+        echo "✅ Created local branch $TARGET_BRANCH from $remote_found/$TARGET_BRANCH"
+        branches_switched=$((branches_switched + 1))
+        cd "$prev_dir" || true
+        echo "-----------------------------------"
+        continue
+      else
+        echo "❌ Failed to create branch from remote $remote_found."
         switch_failed=$((switch_failed + 1))
+        cd "$prev_dir" || true
+        echo "-----------------------------------"
         continue
       fi
-    fi
-
-    if [ "$DRY_RUN" -eq 1 ]; then
-      echo "🧪 [Dry-run] Would switch from $current_branch to $TARGET_BRANCH"
     else
-      if git checkout "$TARGET_BRANCH" --quiet; then
-        echo "✅ Switched to $TARGET_BRANCH (was $current_branch)"
-        branches_switched=$((branches_switched + 1))
-      else
-        echo "❌ Failed to switch branch."
-        switch_failed=$((switch_failed + 1))
-      fi
+      echo "🧪 [Dry-run] Would create local branch from $remote_found/$TARGET_BRANCH"
+      branches_skipped=$((branches_skipped + 1))
+      cd "$prev_dir" || true
+      echo "-----------------------------------"
+      continue
     fi
-  )
+  fi
+
+  if [ "$exists_locally" -eq 0 ]; then
+    echo "❌ Branch '$TARGET_BRANCH' not found locally or on any remote."
+    switch_failed=$((switch_failed + 1))
+    cd "$prev_dir" || true
+    echo "-----------------------------------"
+    continue
+  fi
+
+  if [ "$DRY_RUN" -eq 1 ]; then
+    echo "🧪 [Dry-run] Would switch from $current_branch to $TARGET_BRANCH"
+    branches_skipped=$((branches_skipped + 1))
+    cd "$prev_dir" || true
+    echo "-----------------------------------"
+    continue
+  fi
+
+  if git checkout "$TARGET_BRANCH" --quiet; then
+    echo "✅ Switched to $TARGET_BRANCH (was $current_branch)"
+    branches_switched=$((branches_switched + 1))
+  else
+    echo "❌ Failed to switch branch."
+    switch_failed=$((switch_failed + 1))
+  fi
+
+  # Return to the previous working directory
+  cd "$prev_dir" || true
 
   echo "-----------------------------------"
-done
+done < <(find "$BASE_DIR" -type d -name ".git" -print0)
 
 echo "✅ Switch completed."
 echo "📦 Total repos: $total_repos"
 echo "🔁 Switched: $branches_switched"
 echo "⚠️  Skipped: $branches_skipped"
 echo "❌ Failed: $switch_failed"
-exit 0
+exit $switch_failed
