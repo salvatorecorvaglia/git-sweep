@@ -10,7 +10,7 @@ Recursively scans a base directory for Git repositories and updates each local b
 ### 2. `git-switch-all.sh` - Branch Switcher  
 Switches all Git repositories under a specified directory to a target branch. Can create local branches from remote tracking branches if they don't exist locally.
 
-### 3. `delete_local_branch.sh` - Branch Deleter
+### 3. `delete-local-branch.sh` - Branch Deleter
 Recursively scans a base directory and deletes a specified local branch from all repositories where it exists. Safely skips the branch if it is currently checked out.
 
 ## Features
@@ -34,7 +34,7 @@ Recursively scans a base directory and deletes a specified local branch from all
 - Creates local branches from remote tracking branches when needed
 - Provides comprehensive summary of switch operations
 
-### delete_local_branch.sh Specific Features
+### delete-local-branch.sh Specific Features
 - Deletes a specified local branch across all repositories
 - **Safety Check**: Skips deletion if the branch is currently checked out
 - Uses force delete (`git branch -D`) to ensure removal
@@ -52,7 +52,7 @@ Make both scripts executable:
 ```bash
 chmod +x git-pull-all.sh
 chmod +x git-switch-all.sh
-chmod +x delete_local_branch.sh
+chmod +x delete-local-branch.sh
 ```
 
 ## Usage
@@ -106,12 +106,12 @@ Switches all repositories to a specified branch:
 ./git-switch-all.sh --branch feature/new-feature --dir /path/to/repositories
 ```
 
-### delete_local_branch.sh - Delete Local Branch
+### delete-local-branch.sh - Delete Local Branch
 
 Deletes a specific local branch across all repositories:
 
 ```bash
-./delete_local_branch.sh --branch <branch-name> [--dir <base-directory>]
+./delete-local-branch.sh --branch <branch-name> [--dir <base-directory>]
 ```
 
 **Options:**
@@ -121,7 +121,7 @@ Deletes a specific local branch across all repositories:
 **Examples:**
 ```bash
 # Delete 'feature/login' branch from all repos
-./delete_local_branch.sh --branch feature/login
+./delete-local-branch.sh --branch feature/login
 ```
 
 ## How It Works
@@ -148,7 +148,7 @@ Both scripts use `find` to recursively locate all `.git` directories under the s
 3. Switches to target branch
 4. Provides summary of operations
 
-### delete_local_branch.sh Workflow
+### delete-local-branch.sh Workflow
 1. Validates repository
 2. Checks if target branch exists locally
 3. Checks if target branch is currently checked out (skips if true)
@@ -174,7 +174,7 @@ Both scripts provide color-coded output with emojis for easy interpretation:
 ### git-switch-all.sh
 - `0`: All operations completed (regardless of individual failures)
 
-### delete_local_branch.sh
+### delete-local-branch.sh
 - `0`: All operations completed successfully
 - `>0`: Number of failed deletions
 
@@ -185,7 +185,7 @@ Both scripts provide color-coded output with emojis for easy interpretation:
 - **Release Preparation**: Use `git-switch-all.sh` to switch all repos to release branch
 - **Feature Development**: Switch all repos to feature branch for integrated development
 - **Hotfix Deployment**: Quickly switch all repos to hotfix branch
-- **Cleanup**: Use `delete_local_branch.sh` to remove feature branches after merging
+- **Cleanup**: Use `delete-local-branch.sh` to remove feature branches after merging
 
 ### Continuous Integration
 - **Build Pipeline**: Ensure all repositories are on correct branch before building
