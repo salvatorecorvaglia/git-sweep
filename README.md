@@ -15,30 +15,35 @@ Recursively scans a base directory and deletes a specified local branch from all
 
 ## Features
 
-### Common Features (Update & Switch Scripts)
-- Detects all Git repositories under a given base directory
-- Skips repositories with uncommitted changes
-- Supports a **dry-run mode** to preview actions without making any changes
-- Handles **detached HEADs** and empty repositories gracefully
-- Provides detailed output with color-coded messages for clarity
-- Portable and tested on macOS, Linux, and WSL environments
+### Common Features (All Scripts)
+- 🎨 **Color-coded output** with emojis for easy interpretation (Red=errors, Green=success, Yellow=warnings, Blue=verbose, Cyan=info)
+- 📖 **Comprehensive help system** - Use `--help` on any script for detailed documentation
+- 🔍 **Verbose mode** - Add `-v` or `--verbose` flag for detailed operation logs
+- 🧪 **Dry-run mode** - Preview actions with `-n` or `--dry-run` without making changes
+- 🛡️ **Safety checks** - Detects and skips repositories with uncommitted changes
+- 📊 **Enhanced statistics** - Detailed summary reports with operation counts
+- 🌐 **Portable** - Tested on macOS, Linux, and WSL environments
 
 ### git-pull-all.sh Specific Features
-- Automatically fetches updates from all remotes
-- Updates all branches that have tracking branches, using **fast-forward-only merges**
-- Shows commits to be merged when fast-forward merge is not possible
-- Exits with non-zero status if any branch could not be fast-forwarded
+- 🌐 **Multi-remote support** - Automatically fetches from all configured remotes
+- 🔄 **Fast-forward updates** - Updates all tracked branches using fast-forward-only merges
+- 📥 **Commit tracking** - Shows exact number of commits pulled per branch
+- 📈 **Detailed statistics** - Reports total commits pulled, branches updated, and repositories affected
+- ⚠️ **Conflict detection** - Identifies non-fast-forward situations requiring manual intervention
 
 ### git-switch-all.sh Specific Features
-- Switches to a specified target branch across all repositories
-- Creates local branches from remote tracking branches when needed
-- Provides comprehensive summary of switch operations
+- 🔀 **Smart branch switching** - Switches to target branch or creates from remote if needed
+- 📥 **Pull after switch** - Optional `--pull` flag to update branch after switching
+- 🆕 **Branch creation tracking** - Separately tracks switched vs. newly created branches
+- ℹ️ **Already on branch detection** - Skips repositories already on target branch (with optional pull)
+- 🌐 **Remote branch support** - Automatically creates local branches from remote tracking branches
 
 ### delete-local-branch.sh Specific Features
-- Deletes a specified local branch across all repositories
-- **Safety Check**: Skips deletion if the branch is currently checked out
-- Uses force delete (`git branch -D`) to ensure removal
-- Provides summary of deleted, skipped, and failed operations
+- ✅ **Confirmation prompt** - Asks for confirmation before deletion (skip with `--yes`)
+- 🔧 **Soft/Force delete** - Choose between safe soft delete (`-d`) or force delete (`-D`) with `--force` flag
+- 🛡️ **Safety checks** - Skips deletion if branch is currently checked out
+- 📊 **Operation summary** - Detailed report of deleted, skipped, and failed operations
+- 🔒 **Default safety** - Uses soft delete by default to prevent accidental deletion of unmerged work
 
 ## Requirements
 
@@ -57,71 +62,165 @@ chmod +x delete-local-branch.sh
 
 ## Usage
 
+### Quick Start
+
+All scripts support `--help` for comprehensive usage information:
+```bash
+./git-pull-all.sh --help
+./git-switch-all.sh --help
+./delete-local-branch.sh --help
+```
+
 ### git-pull-all.sh - Update All Branches
 
-Updates all branches with tracking upstreams across multiple repositories:
+Fetches and fast-forward merges all tracked branches across multiple repositories:
 
 ```bash
-./git-pull-all.sh [--dry-run] [--dir <base-directory>]
+./git-pull-all.sh [OPTIONS]
 ```
 
 **Options:**
-- `--dry-run` or `-n`: Preview actions without making changes
-- `--dir <path>` or `-d <path>`: Specify base directory (default: `~/Desktop/mase`)
+- `-d, --dir <path>` - Base directory to scan (default: `~/Desktop/apps`)
+- `-n, --dry-run` - Show what would be updated without making changes
+- `-v, --verbose` - Show detailed operation logs
+- `-h, --help` - Display help documentation
 
 **Examples:**
 ```bash
 # Update all repositories in default directory
 ./git-pull-all.sh
 
-# Dry run to see what would be updated
+# Dry-run to preview updates and commit counts
 ./git-pull-all.sh --dry-run
 
-# Update repositories in a specific directory
-./git-pull-all.sh --dir /path/to/repositories
+# Update repositories in custom directory with verbose output
+./git-pull-all.sh --dir /path/to/repos --verbose
+
+# See all available options
+./git-pull-all.sh --help
+```
+
+**Output Example:**
+```
+🔍 Fetching and updating all tracked branches in: ~/projects
+➡️  Repository: my-app
+🌐 Fetching from remote: origin
+🔄 Updating main from origin/main (3 new commit(s))
+✅ main updated (+3 commit(s))
+-----------------------------------
+🏁 Update completed.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Total repositories scanned: 10
+✅ Repositories updated: 7
+⏭️  Repositories skipped: 3
+🔄 Total branches updated: 15
+📥 Total commits pulled: 42
 ```
 
 ### git-switch-all.sh - Switch All Branches
 
-Switches all repositories to a specified branch:
+Switches all repositories to a specified branch, creating from remote if needed:
 
 ```bash
-./git-switch-all.sh --branch <branch-name> [--dry-run] [--dir <base-directory>]
+./git-switch-all.sh --branch <branch-name> [OPTIONS]
 ```
 
 **Options:**
-- `--branch <name>` or `-b <name>`: **Required** - Target branch to switch to
-- `--dry-run` or `-n`: Preview actions without making changes
-- `--dir <path>` or `-d <path>`: Specify base directory (default: `/c/apps/mase`)
+- `-b, --branch <name>` - **Required** - Target branch to switch to
+- `-d, --dir <path>` - Base directory to scan (default: `~/Desktop/apps`)
+- `-n, --dry-run` - Show what would be done without making changes
+- `-p, --pull` - Pull after switching to update the branch
+- `-v, --verbose` - Show detailed operation logs
+- `-h, --help` - Display help documentation
 
 **Examples:**
 ```bash
 # Switch all repositories to main branch
 ./git-switch-all.sh --branch main
 
-# Dry run to see what would be switched
-./git-switch-all.sh --branch develop --dry-run
+# Switch and pull to get latest changes
+./git-switch-all.sh --branch develop --pull
 
-# Switch repositories in a specific directory
-./git-switch-all.sh --branch feature/new-feature --dir /path/to/repositories
+# Dry-run to preview what would happen
+./git-switch-all.sh --branch release/v2.0 --dry-run
+
+# Switch with verbose output in custom directory
+./git-switch-all.sh --branch hotfix --dir /opt/repos --verbose
+
+# See all available options
+./git-switch-all.sh --help
+```
+
+**Output Example:**
+```
+🔀 Switching all Git repositories to branch: develop
+📁 Base directory: ~/projects
+➡️  Repository: my-app
+✅ Switched to develop (was on main)
+➡️  Repository: api-service
+🌐 Found remote branch on origin
+✅ Created and switched to develop (tracking origin/develop)
+-----------------------------------
+🏁 Switch completed.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Total repositories scanned: 10
+🔁 Branches switched: 8
+🆕 Branches created from remote: 2
+⏭️  Skipped: 0
+❌ Failed: 0
 ```
 
 ### delete-local-branch.sh - Delete Local Branch
 
-Deletes a specific local branch across all repositories:
+Deletes a specific local branch across all repositories with safety checks:
 
 ```bash
-./delete-local-branch.sh --branch <branch-name> [--dir <base-directory>]
+./delete-local-branch.sh --branch <branch-name> [OPTIONS]
 ```
 
 **Options:**
-- `--branch <name>` or `-b <name>`: **Required** - Branch to delete
-- `--dir <path>` or `-d <path>`: Specify base directory (default: `/c/apps/mase`)
+- `-b, --branch <name>` - **Required** - Branch name to delete
+- `-d, --dir <path>` - Base directory to scan (default: `~/Desktop/apps`)
+- `-f, --force` - Force delete (git branch -D), even if unmerged
+- `-y, --yes` - Skip confirmation prompt
+- `-v, --verbose` - Show detailed operation logs
+- `-h, --help` - Display help documentation
 
 **Examples:**
 ```bash
-# Delete 'feature/login' branch from all repos
-./delete-local-branch.sh --branch feature/login
+# Safe delete with confirmation (default behavior)
+./delete-local-branch.sh --branch feature/old-code
+
+# Force delete unmerged branch without confirmation
+./delete-local-branch.sh --branch experimental --force --yes
+
+# Delete from custom directory with verbose output
+./delete-local-branch.sh --branch hotfix/bug-123 --dir /workspace --verbose
+
+# See all available options
+./delete-local-branch.sh --help
+```
+
+**Output Example:**
+```
+⚠️  You are about to soft delete (-d) branch 'feature/old-api' from all repositories in:
+  ~/projects
+
+Are you sure you want to continue? (yes/no): yes
+
+🗑️  Soft deleting local branch: 'feature/old-api' (only if merged)
+📁 Base directory: ~/projects
+➡️  Repository: my-app
+✅ Branch deleted: feature/old-api
+➡️  Repository: api-service
+ℹ️  Local branch does not exist: feature/old-api
+-----------------------------------
+🏁 Operation completed.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Total repositories scanned: 10
+🗑️  Successfully deleted: 6
+⏭️  Skipped: 4
+❌ Failed: 0
 ```
 
 ## How It Works
@@ -157,26 +256,39 @@ Both scripts use `find` to recursively locate all `.git` directories under the s
 
 ## Output Format
 
-Both scripts provide color-coded output with emojis for easy interpretation:
+All scripts provide color-coded output with emojis for easy interpretation:
 
-- 🔍 **Blue**: Information and progress messages
-- ✅ **Green**: Successful operations
+- ✅ **Green**: Successful operations and success messages
+- ❌ **Red**: Errors and failed operations
 - ⚠️ **Yellow**: Warnings and skipped operations
-- ❌ **Red**: Errors and failures
+- ℹ️ **Cyan**: Informational messages
+- 🔍 **Blue**: Verbose/debug information (when using `--verbose`)
 - 🧪 **Yellow**: Dry-run mode indicators
+
+### Summary Statistics
+
+Each script provides a detailed summary with:
+- Total repositories scanned
+- Number of successful operations (color-coded)
+- Number of skipped operations with reasons
+- Number of failed operations
+- Script-specific metrics (commits pulled, branches created, etc.)
 
 ## Exit Codes
 
+All scripts follow consistent exit code conventions for easy integration with CI/CD:
+
 ### git-pull-all.sh
-- `0`: All operations successful
-- `1`: One or more branches failed to fast-forward merge
+- `0` - All fast-forward merges succeeded
+- `1` - One or more non-fast-forward merges detected (manual intervention required)
 
 ### git-switch-all.sh
-- `0`: All operations completed (regardless of individual failures)
+- `0` - All switch operations succeeded
+- `N` - Number of failed switch operations
 
 ### delete-local-branch.sh
-- `0`: All operations completed successfully
-- `>0`: Number of failed deletions
+- `0` - All deletions succeeded (or no branches found)
+- `N` - Number of failed deletions
 
 ## Common Use Cases
 
@@ -194,11 +306,16 @@ Both scripts provide color-coded output with emojis for easy interpretation:
 
 ## Tips and Best Practices
 
-1. **Always use dry-run first**: Test with `--dry-run` before making actual changes
-2. **Commit your work**: Both scripts skip repositories with uncommitted changes
-3. **Configure default directories**: Edit the scripts to set your preferred default directories
-4. **Monitor output**: Pay attention to warnings and errors in the colored output
-5. **Backup important work**: Though safe, always backup critical work before bulk operations
+1. **Use `--help` first**: Run `./script.sh --help` to see all available options and examples
+2. **Always test with dry-run**: Use `--dry-run` to preview changes before applying them
+3. **Enable verbose mode for debugging**: Add `--verbose` to see detailed operation logs
+4. **Commit your work**: All scripts skip repositories with uncommitted changes
+5. **Use soft delete by default**: The delete script uses safe soft delete unless `--force` is specified
+6. **Leverage confirmation prompts**: The delete script asks for confirmation unless `--yes` is used
+7. **Monitor colored output**: Colors make it easy to spot errors (red) and successes (green) at a glance
+8. **Pull after switching**: Use `git-switch-all.sh --pull` to ensure branches are up-to-date
+9. **Check statistics**: Review the summary statistics to verify operations completed as expected
+10. **Backup important work**: Though safe, always backup critical work before bulk operations
 
 ## Troubleshooting
 
